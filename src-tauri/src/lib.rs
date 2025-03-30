@@ -1,5 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-mod cap;
+pub mod cap;
+pub mod packet;
 
 #[tauri::command]
 fn greet(name: &str) -> String {

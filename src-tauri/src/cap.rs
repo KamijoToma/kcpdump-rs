@@ -51,7 +51,7 @@ impl Capture {
             _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid pcap file")),
         };
 
-        let mut read_u16 = |buf: &[u8]| -> u16 {
+        let read_u16 = |buf: &[u8]| -> u16 {
             if is_big_endian {
                 BigEndian::read_u16(buf)
             } else {
@@ -59,7 +59,7 @@ impl Capture {
             }
         };
 
-        let mut read_u32 = |buf: &[u8]| -> u32 {
+        let read_u32 = |buf: &[u8]| -> u32 {
             if is_big_endian {
                 BigEndian::read_u32(buf)
             } else {
@@ -92,7 +92,7 @@ impl Capture {
     }
 
     pub async fn next_packet(&mut self) -> io::Result<Option<PcapPacket>> {
-        let mut read_u32 = |buf: &[u8]| -> u32 {
+        let read_u32 = |buf: &[u8]| -> u32 {
             if self.is_big_endian {
                 BigEndian::read_u32(buf)
             } else {
@@ -126,7 +126,9 @@ impl Capture {
 
 #[cfg(test)]
 mod tests {
-    use super::{Capture, PcapHeader};
+    use crate::packet::EthernetPacket;
+
+    use super::Capture;
     use tokio::fs::File;
     use tokio::io::AsyncWriteExt;
 
@@ -169,5 +171,64 @@ mod tests {
         }
 
         tokio::fs::remove_file(temp_file_path).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_tcpdump_file(){
+        let temp_file_path = "sample.pcap";
+        // Read the pcap file
+        let mut capture = Capture::from_file(temp_file_path).await.unwrap();
+        let header = capture.header();
+        assert_eq!(header.magic_number, 0xa1b2c3d4);
+        // Sum packet number
+        let mut packet_count = 0;
+        while let Some(_) = capture.next_packet().await.unwrap() {
+            packet_count += 1;
+            // println!("{:?}", packet);
+        }
+        println!("Total packets: {}", packet_count);
+    }
+
+    #[tokio::test]
+    async fn test_extract_ethernet(){
+        let temp_file_path = "sample.pcap";
+        // Read the pcap file
+        let mut capture = Capture::from_file(temp_file_path).await.unwrap();
+        let header = capture.header();
+        assert_eq!(header.magic_number, 0xa1b2c3d4);
+        if let Some(raw_packet) = capture.next_packet().await.unwrap() {
+            let eth_packet = EthernetPacket::try_from(raw_packet.data.as_slice()).unwrap();
+            println!("Ethernet Packet: {:?}", eth_packet);
+            println!("Destination MAC: {}", eth_packet.header.dest_mac);
+            println!("Source MAC: {}", eth_packet.header.src_mac);
+            println!("EtherType: {:?}", eth_packet.header.ether_type);
+            println!("Data Length: {}", eth_packet.data.len());
+        } else {
+            panic!("No Ethernet packet found.");
+        }
+    }
+
+    #[tokio::test]
+    async fn sum_ethernet_type(){
+        let temp_file_path = "sample.pcap";
+        // Read the pcap file
+        let mut capture = Capture::from_file(temp_file_path).await.unwrap();
+        let header = capture.header();
+        assert_eq!(header.magic_number, 0xa1b2c3d4);
+        let mut eth_type_count = std::collections::HashMap::new();
+        let mut packet_count = 0;
+        while let Some(raw_packet) = capture.next_packet().await.unwrap() {
+            let eth_packet = EthernetPacket::try_from(raw_packet.data.as_slice()).unwrap();
+            eth_type_count
+                .entry(eth_packet.header.ether_type)
+                .and_modify(|count| *count += 1)
+                .or_insert(1);
+            packet_count += 1;
+        }
+        for (eth_type, count) in eth_type_count {
+            println!("EtherType: {:?}, Count: {}", eth_type, count);
+        }
+        // Print the total number of packets
+        println!("Total packets: {}", packet_count);
     }
 }
