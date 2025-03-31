@@ -1,13 +1,12 @@
 use core::fmt;
 use std::hash::Hash;
 
-
 /// Mac Address
 /// Represents a MAC address in a human-readable format.
 /// The MAC address is represented as a string in the format "XX:XX:XX:XX:XX:XX"
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MacAddress (pub [u8; 6]);
+pub struct MacAddress(pub [u8; 6]);
 
 impl From<[u8; 6]> for MacAddress {
     fn from(bytes: [u8; 6]) -> Self {
@@ -23,9 +22,11 @@ impl Into<[u8; 6]> for MacAddress {
 
 impl fmt::Display for MacAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-            self.0[0], self.0[1], self.0[2],
-            self.0[3], self.0[4], self.0[5])
+        write!(
+            f,
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5]
+        )
     }
 }
 
@@ -89,14 +90,8 @@ impl TryFrom<&[u8]> for EthernetPacket {
             return Err("Data too short for Ethernet packet");
         }
 
-        let dest_mac = MacAddress([
-            data[0], data[1], data[2],
-            data[3], data[4], data[5],
-        ]);
-        let src_mac = MacAddress([
-            data[6], data[7], data[8],
-            data[9], data[10], data[11],
-        ]);
+        let dest_mac = MacAddress([data[0], data[1], data[2], data[3], data[4], data[5]]);
+        let src_mac = MacAddress([data[6], data[7], data[8], data[9], data[10], data[11]]);
         let ether_type = match (data[12], data[13]) {
             (0x08, 0x00) => EtherType::IPv4,
             (0x08, 0x06) => EtherType::ARP,
@@ -115,7 +110,6 @@ impl TryFrom<&[u8]> for EthernetPacket {
     }
 }
 
-
 mod tests {
     use super::*;
 
@@ -127,14 +121,17 @@ mod tests {
     #[test]
     fn test_ethernet_packet() {
         let data: [u8; 14] = [
-            0x01, 0x23, 0x45, 0x67, 0x89, 0xAB,
-            0x01, 0x23, 0x45, 0x67, 0x89, 0xAC,
-            0x08, 0x00,
+            0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAC, 0x08, 0x00,
         ];
         let packet: EthernetPacket = (&data[..]).try_into().unwrap();
-        assert_eq!(packet.header.dest_mac.0, [0x01, 0x23, 0x45, 0x67, 0x89, 0xAB]);
-        assert_eq!(packet.header.src_mac.0, [0x01, 0x23, 0x45, 0x67, 0x89, 0xAC]);
+        assert_eq!(
+            packet.header.dest_mac.0,
+            [0x01, 0x23, 0x45, 0x67, 0x89, 0xAB]
+        );
+        assert_eq!(
+            packet.header.src_mac.0,
+            [0x01, 0x23, 0x45, 0x67, 0x89, 0xAC]
+        );
         assert_eq!(packet.header.ether_type, EtherType::IPv4);
     }
 }
-

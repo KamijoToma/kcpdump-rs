@@ -1,160 +1,121 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 
-const greetMsg = ref("");
-const name = ref("");
+const filePath = ref("");
+const packets = ref<{ ethType: string; source: string; target: string }[]>([]);
 
-async function greet() {
-  // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-  greetMsg.value = await invoke("greet", { name: name.value });
+const currentPage = ref(1);
+const packetsPerPage = 10;
+
+const paginatedPackets = computed(() => {
+  const start = (currentPage.value - 1) * packetsPerPage;
+  const end = start + packetsPerPage;
+  return packets.value.slice(start, end);
+});
+
+const totalPages = computed(() => {
+  return Math.ceil(packets.value.length / packetsPerPage);
+});
+
+function nextPage() {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
+  }
+}
+
+function prevPage() {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+  }
+}
+
+async function pickFile() {
+  const selected = await open({
+    filters: [{ name: "PCAP Files", extensions: ["pcap"] }],
+  });
+  if (selected && typeof selected === "string") {
+    filePath.value = selected;
+    await analyzeFile();
+  }
+}
+
+async function analyzeFile() {
+  if (!filePath.value) return;
+  packets.value = await invoke("analyze_pcap", { filePath: filePath.value });
+  console.log("Packets:", packets.value);
 }
 </script>
 
 <template>
   <main class="container">
-    <h1>Welcome to Tauri + Vue</h1>
+    <h1>PCAP File Analyzer</h1>
 
-    <div class="row">
-      <a href="https://vitejs.dev" target="_blank">
-        <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-      </a>
-      <a href="https://tauri.app" target="_blank">
-        <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-      </a>
-      <a href="https://vuejs.org/" target="_blank">
-        <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-      </a>
+    <button @click="pickFile">Pick a PCAP File</button>
+    <p v-if="filePath">Selected File: {{ filePath }}</p>
+
+    <table v-if="packets.length" class="packet-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Source</th>
+          <th>Target</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(packet, index) in paginatedPackets" :key="index">
+          <td>{{ packet.ethType }}</td>
+          <td>{{ packet.source }}</td>
+          <td>{{ packet.target }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div v-if="packets.length" class="pagination">
+      <button @click="prevPage" :disabled="currentPage === 1">Previous</button>
+      <span>Page {{ currentPage }} of {{ totalPages }}</span>
+      <button @click="nextPage" :disabled="currentPage === totalPages">Next</button>
     </div>
-    <p>Click on the Tauri, Vite, and Vue logos to learn more.</p>
 
-    <form class="row" @submit.prevent="greet">
-      <input id="greet-input" v-model="name" placeholder="Enter a name..." />
-      <button type="submit">Greet</button>
-    </form>
-    <p>{{ greetMsg }}</p>
+    <p v-else-if="filePath">No packets found or unable to analyze the file.</p>
   </main>
 </template>
 
 <style scoped>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
+.packet-table {
+  margin: 20px auto;
+  border-collapse: collapse;
+  width: 80%;
 }
 
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #249b73);
-}
-
-</style>
-<style>
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.packet-table th,
+.packet-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
+.packet-table th {
+  background-color: #f4f4f4;
+  font-weight: bold;
 }
 
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
+.pagination {
   display: flex;
   justify-content: center;
+  align-items: center;
+  margin-top: 20px;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
+.pagination button {
+  margin: 0 10px;
+  padding: 5px 10px;
   cursor: pointer;
 }
 
-button:hover {
-  border-color: #396cd8;
+.pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
-
 </style>

@@ -1,6 +1,6 @@
+use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use tokio::fs::File;
 use tokio::io::{self, AsyncReadExt, BufReader};
-use byteorder::{BigEndian, LittleEndian, ByteOrder};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -48,7 +48,12 @@ impl Capture {
         let is_big_endian = match magic_number {
             0xa1b2c3d4 => false,
             0xd4c3b2a1 => true,
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid pcap file")),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Invalid pcap file",
+                ));
+            }
         };
 
         let read_u16 = |buf: &[u8]| -> u16 {
@@ -140,8 +145,8 @@ mod tests {
         // Write fake pcap header
         file.write_all(&[
             0xd4, 0xc3, 0xb2, 0xa1, // magic number
-            0x02, 0x00,             // version major
-            0x04, 0x00,             // version minor
+            0x02, 0x00, // version major
+            0x04, 0x00, // version minor
             0x00, 0x00, 0x00, 0x00, // thiszone
             0x00, 0x00, 0x00, 0x00, // sigfigs
             0xff, 0xff, 0x00, 0x00, // snaplen
@@ -174,7 +179,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_tcpdump_file(){
+    async fn test_tcpdump_file() {
         let temp_file_path = "sample.pcap";
         // Read the pcap file
         let mut capture = Capture::from_file(temp_file_path).await.unwrap();
@@ -190,7 +195,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_extract_ethernet(){
+    async fn test_extract_ethernet() {
         let temp_file_path = "sample.pcap";
         // Read the pcap file
         let mut capture = Capture::from_file(temp_file_path).await.unwrap();
@@ -209,7 +214,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sum_ethernet_type(){
+    async fn sum_ethernet_type() {
         let temp_file_path = "sample.pcap";
         // Read the pcap file
         let mut capture = Capture::from_file(temp_file_path).await.unwrap();
