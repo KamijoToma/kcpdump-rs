@@ -11,6 +11,8 @@ struct EthernetTuple {
     eth_type: String,
     source: String,
     target: String,
+    ts_sec: u32,    // 秒级时间戳
+    ts_usec: u32,   // 微秒级时间戳
 }
 
 #[tauri::command]
@@ -22,9 +24,13 @@ async fn analyze_pcap(file_path: String) -> Result<Vec<EthernetTuple>, String> {
 
     while let Some(raw_packet) = capture.next_packet().await.map_err(|e| e.to_string())? {
         if let Ok(eth_packet) = EthernetPacket::try_from(raw_packet.data.as_slice()) {
-            results.push(EthernetTuple { eth_type: format!("{:?}", eth_packet.header.ether_type),
-            source: eth_packet.header.src_mac.to_string(),
-            target: eth_packet.header.dest_mac.to_string(), });
+            results.push(EthernetTuple { 
+                eth_type: format!("{:?}", eth_packet.header.ether_type),
+                source: eth_packet.header.src_mac.to_string(),
+                target: eth_packet.header.dest_mac.to_string(),
+                ts_sec: raw_packet.header.ts_sec,
+                ts_usec: raw_packet.header.ts_usec,
+            });
         }
     }
 
@@ -49,7 +55,7 @@ mod tests {
         }
         // Print first packet details for verification
         if let Some(eth_packet) = packets.first() {
-            println!("First packet: EthType: {}, Src MAC: {}, Dest MAC: {}", eth_packet.eth_type, eth_packet.source, eth_packet.target);
+            println!("First packet: EthType: {}, Src MAC: {}, Dest MAC: {}, Timestamp: {}.{}", eth_packet.eth_type, eth_packet.source, eth_packet.target, eth_packet.ts_sec, eth_packet.ts_usec);
         }
     }
 }

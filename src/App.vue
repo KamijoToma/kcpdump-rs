@@ -20,7 +20,13 @@ import {
 } from "naive-ui";
 
 const filePath = ref("");
-const packets = ref<{ ethType: string; source: string; target: string }[]>([]);
+const packets = ref<{ 
+  ethType: string; 
+  source: string; 
+  target: string; 
+  tsSec: number;
+  tsUsec: number; 
+}[]>([]);
 const isLoading = ref(false);
 
 const currentPage = ref(1);
@@ -78,8 +84,33 @@ async function analyzeFile() {
   }
 }
 
+// format timestamp
+const formatTimestamp = (tsSec: number, tsUsec: number, format: string = 'default') => {
+  const date = new Date(tsSec * 1000 + Math.floor(tsUsec / 1000));
+  
+  // 添加微秒部分（JavaScript Date 只支持到毫秒）
+  const microseconds = tsUsec % 1000;
+  
+  switch (format) {
+    case 'full':
+      return `${date.toISOString().replace('Z', '')}${microseconds.toString().padStart(3, '0')}`;
+    case 'time':
+      return `${date.toLocaleTimeString()}.${(tsUsec / 1000).toFixed(3)}`;
+    default:
+      return `${date.toLocaleString()}.${(tsUsec / 1000).toFixed(3)}`;
+  }
+};
+
 // 创建表格列
 const columns = [
+  {
+    title: "时间戳",
+    key: "timestamp",
+    width: 200,
+    render: (row: { tsSec: number; tsUsec: number }) => {
+      return h('div', {}, formatTimestamp(row.tsSec, row.tsUsec));
+    }
+  },
   {
     title: "类型",
     key: "ethType",
