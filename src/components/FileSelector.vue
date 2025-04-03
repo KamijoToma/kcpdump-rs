@@ -26,12 +26,12 @@ async function pickFile() {
 
 <template>
   <div class="flex items-center space-x-4">
-    <NButton type="primary" @click="pickFile" :loading="isLoading">
+    <NButton type="primary" @click="pickFile" :loading="props.isLoading">
       选择 PCAP 文件
     </NButton>
     <NInput
-      v-if="filePath"
-      :value="filePath"
+      v-if="props.filePath"
+      :value="props.filePath"
       readonly
       placeholder="未选择文件"
       class="flex-grow"
