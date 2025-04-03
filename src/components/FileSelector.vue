@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
-import { NButton, NInput, NSpace } from "naive-ui";
+import { NButton, NInput } from "naive-ui";
 
 const props = defineProps<{
   filePath: string;
