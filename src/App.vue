@@ -19,6 +19,11 @@ import {
   NDataTable,
   NTabs,
   NTabPane,
+  NDatePicker,
+  NSelect,
+  NInputGroup,
+  NForm,
+  NFormItem,
 } from "naive-ui";
 
 const filePath = ref("");
@@ -49,16 +54,59 @@ const ipv4PacketsPerPage = ref(5);
 // 创建离散API用于全局消息
 const { message } = createDiscreteApi(['message']);
 
+// 筛选条件
+const ipv4Filter = ref({
+  startTime: null as number | null,
+  endTime: null as number | null,
+  ipAddress: "",
+  direction: "any" // 'source', 'dest', 'any'
+});
+
+// 是否已应用筛选
+const isFiltered = ref(false);
+
 const paginatedPackets = computed(() => {
   const start = (currentPage.value - 1) * packetsPerPage.value;
   const end = start + packetsPerPage.value;
   return packets.value.slice(start, end);
 });
 
+// 筛选后的IPv4数据包
+const filteredIpv4Packets = computed(() => {
+  if (!isFiltered.value) return ipv4Packets.value;
+
+  return ipv4Packets.value.filter(packet => {
+    // 时间过滤
+    const packetTime = packet.tsSec * 1000 + Math.floor(packet.tsUsec / 1000);
+    const timeMatches = 
+      (!ipv4Filter.value.startTime || packetTime >= ipv4Filter.value.startTime) &&
+      (!ipv4Filter.value.endTime || packetTime <= ipv4Filter.value.endTime);
+    
+    if (!timeMatches) return false;
+
+    // IP过滤
+    if (ipv4Filter.value.ipAddress) {
+      switch (ipv4Filter.value.direction) {
+        case "source":
+          return packet.sourceIp === ipv4Filter.value.ipAddress;
+        case "dest":
+          return packet.destIp === ipv4Filter.value.ipAddress;
+        case "any":
+          return packet.sourceIp === ipv4Filter.value.ipAddress || 
+                 packet.destIp === ipv4Filter.value.ipAddress;
+        default:
+          return true;
+      }
+    }
+    
+    return true;
+  });
+});
+
 const paginatedIpv4Packets = computed(() => {
   const start = (ipv4CurrentPage.value - 1) * ipv4PacketsPerPage.value;
   const end = start + ipv4PacketsPerPage.value;
-  return ipv4Packets.value.slice(start, end);
+  return filteredIpv4Packets.value.slice(start, end);
 });
 
 const totalPages = computed(() => {
@@ -66,7 +114,7 @@ const totalPages = computed(() => {
 });
 
 const totalIpv4Pages = computed(() => {
-  return Math.ceil(ipv4Packets.value.length / ipv4PacketsPerPage.value);
+  return Math.ceil(filteredIpv4Packets.value.length / ipv4PacketsPerPage.value);
 });
 
 function handlePageChange(page: number) {
@@ -85,6 +133,24 @@ function handleIpv4PageChange(page: number) {
 function handleIpv4PageSizeChange(pageSize: number) {
   ipv4PacketsPerPage.value = pageSize;
   ipv4CurrentPage.value = 1;
+}
+
+function applyFilter() {
+  isFiltered.value = true;
+  ipv4CurrentPage.value = 1;
+  message.success("已应用筛选");
+}
+
+function clearFilter() {
+  ipv4Filter.value = {
+    startTime: null,
+    endTime: null,
+    ipAddress: "",
+    direction: "any"
+  };
+  isFiltered.value = false;
+  ipv4CurrentPage.value = 1;
+  message.info("已清除筛选");
 }
 
 async function pickFile() {
@@ -116,6 +182,9 @@ async function analyzeFile() {
     } else {
       message.warning("未找到数据包或无法解析文件");
     }
+
+    // 重置筛选
+    clearFilter();
   } catch (error) {
     message.error(`分析文件失败: ${error}`);
     console.error(error);
@@ -218,6 +287,13 @@ const ipv4Columns = [
     key: "totalLength",
   },
 ];
+
+// IP方向选项
+const directionOptions = [
+  { label: "任意", value: "any" },
+  { label: "源IP", value: "source" },
+  { label: "目标IP", value: "dest" },
+];
 </script>
 
 <template>
@@ -276,6 +352,58 @@ const ipv4Columns = [
                 </NTabPane>
                 
                 <NTabPane name="ipv4" tab="IPv4 数据包">
+                  <!-- 筛选区域 -->
+                  <NCard title="IPv4 数据包筛选" class="mb-4">
+                    <NForm inline>
+                      <NFormItem label="时间范围" class="mt-2">
+                        <NDatePicker
+                          v-model:value="ipv4Filter.startTime"
+                          type="datetime"
+                          placeholder="开始时间"
+                          clearable
+                          :shortcuts="{ now: Date.now() }"
+                          style="width: 210px"
+                        />
+                        <span class="mx-2">至</span>
+                        <NDatePicker
+                          v-model:value="ipv4Filter.endTime"
+                          type="datetime"
+                          placeholder="结束时间"
+                          clearable
+                          :shortcuts="{ now: Date.now() }"
+                          style="width: 210px"
+                        />
+                      </NFormItem>
+                      
+                      <NFormItem label="IP筛选" class="mt-2">
+                        <NInputGroup>
+                          <NSelect
+                            v-model:value="ipv4Filter.direction"
+                            :options="directionOptions"
+                            style="width: 100px"
+                          />
+                          <NInput
+                            v-model:value="ipv4Filter.ipAddress"
+                            placeholder="输入要筛选的IP"
+                            style="width: 200px"
+                          />
+                        </NInputGroup>
+                      </NFormItem>
+
+                      <NFormItem class="mt-2">
+                        <NButton type="primary" @click="applyFilter">应用筛选</NButton>
+                        <NButton type="default" class="ml-2" @click="clearFilter">清除筛选</NButton>
+                      </NFormItem>
+                    </NForm>
+
+                    <div v-if="isFiltered" class="text-sm text-blue-600 mt-2">
+                      <NTag type="info">
+                        已筛选：显示 {{ filteredIpv4Packets.length }} / {{ ipv4Packets.length }} 个数据包
+                      </NTag>
+                    </div>
+                  </NCard>
+                  
+                  <!-- 数据表格 -->
                   <NDataTable
                     :columns="ipv4Columns"
                     :data="paginatedIpv4Packets"
@@ -286,7 +414,7 @@ const ipv4Columns = [
                   
                   <div class="flex justify-between items-center mt-4">
                     <div class="text-sm text-gray-500">
-                      共 {{ ipv4Packets.length }} 个 IPv4 数据包
+                      {{ isFiltered ? `显示 ${filteredIpv4Packets.length} / ${ipv4Packets.length} 个 IPv4 数据包` : `共 ${ipv4Packets.length} 个 IPv4 数据包` }}
                     </div>
                     <NPagination
                       v-model:page="ipv4CurrentPage"
