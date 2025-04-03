@@ -1,33 +1,26 @@
 <script setup lang="ts">
-import { ref, computed, h, onMounted, watch } from "vue";
+import { ref, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import * as echarts from 'echarts'; // 导入echarts库
 import {
-  NButton,
   NCard,
-  NPagination,
-  NInput,
-  NSpace,
   NDivider,
   NEmpty,
   NLayout,
   NLayoutHeader,
   NLayoutContent,
   NMessageProvider,
-  NTag,
-  createDiscreteApi,
-  NDataTable,
+  NSpace,
   NTabs,
   NTabPane,
-  NDatePicker,
-  NSelect,
-  NInputGroup,
-  NForm,
-  NFormItem,
-  NGrid,
-  NGridItem,
+  createDiscreteApi
 } from "naive-ui";
+
+// 导入子组件
+import FileSelector from './components/FileSelector.vue';
+import EthernetPacketsTable from './components/EthernetPacketsTable.vue';
+import IPv4Filter from './components/IPv4Filter.vue';
+import IPv4PacketsTable from './components/IPv4PacketsTable.vue';
+import IPAddressCharts from './components/IPAddressCharts.vue';
 
 const filePath = ref("");
 const packets = ref<{ 
@@ -49,11 +42,6 @@ const ipv4Packets = ref<{
 const isLoading = ref(false);
 const activeTab = ref("ethernet");
 
-const currentPage = ref(1);
-const packetsPerPage = ref(5);
-const ipv4CurrentPage = ref(1);
-const ipv4PacketsPerPage = ref(5);
-
 // 创建离散API用于全局消息
 const { message } = createDiscreteApi(['message']);
 
@@ -67,12 +55,6 @@ const ipv4Filter = ref({
 
 // 是否已应用筛选
 const isFiltered = ref(false);
-
-const paginatedPackets = computed(() => {
-  const start = (currentPage.value - 1) * packetsPerPage.value;
-  const end = start + packetsPerPage.value;
-  return packets.value.slice(start, end);
-});
 
 // 筛选后的IPv4数据包
 const filteredIpv4Packets = computed(() => {
@@ -106,41 +88,8 @@ const filteredIpv4Packets = computed(() => {
   });
 });
 
-const paginatedIpv4Packets = computed(() => {
-  const start = (ipv4CurrentPage.value - 1) * ipv4PacketsPerPage.value;
-  const end = start + ipv4PacketsPerPage.value;
-  return filteredIpv4Packets.value.slice(start, end);
-});
-
-const totalPages = computed(() => {
-  return Math.ceil(packets.value.length / packetsPerPage.value);
-});
-
-const totalIpv4Pages = computed(() => {
-  return Math.ceil(filteredIpv4Packets.value.length / ipv4PacketsPerPage.value);
-});
-
-function handlePageChange(page: number) {
-  currentPage.value = page;
-}
-
-function handlePageSizeChange(pageSize: number) {
-  packetsPerPage.value = pageSize;
-  currentPage.value = 1;
-}
-
-function handleIpv4PageChange(page: number) {
-  ipv4CurrentPage.value = page;
-}
-
-function handleIpv4PageSizeChange(pageSize: number) {
-  ipv4PacketsPerPage.value = pageSize;
-  ipv4CurrentPage.value = 1;
-}
-
 function applyFilter() {
   isFiltered.value = true;
-  ipv4CurrentPage.value = 1;
   message.success("已应用筛选");
 }
 
@@ -152,18 +101,7 @@ function clearFilter() {
     direction: "any"
   };
   isFiltered.value = false;
-  ipv4CurrentPage.value = 1;
   message.info("已清除筛选");
-}
-
-async function pickFile() {
-  const selected = await open({
-    filters: [{ name: "PCAP Files", extensions: ["pcap"] }],
-  });
-  if (selected && typeof selected === "string") {
-    filePath.value = selected;
-    await analyzeFile();
-  }
 }
 
 async function analyzeFile() {
@@ -195,256 +133,6 @@ async function analyzeFile() {
     isLoading.value = false;
   }
 }
-
-// 协议映射
-const protocolMap: { [key: number]: string } = {
-  1: "ICMP",
-  2: "IGMP",
-  6: "TCP",
-  17: "UDP",
-  89: "OSPF"
-};
-
-// 获取协议名称
-const getProtocolName = (protocolNum: number): string => {
-  return protocolMap[protocolNum] || `未知(${protocolNum})`;
-};
-
-// format timestamp
-const formatTimestamp = (tsSec: number, tsUsec: number, format: string = 'default') => {
-  const date = new Date(tsSec * 1000 + Math.floor(tsUsec / 1000));
-  
-  // 添加微秒部分（JavaScript Date 只支持到毫秒）
-  const microseconds = tsUsec % 1000;
-  
-  switch (format) {
-    case 'full':
-      return `${date.toISOString().replace('Z', '')}${microseconds.toString().padStart(3, '0')}`;
-    case 'time':
-      return `${date.toLocaleTimeString()}.${(tsUsec / 1000).toFixed(3)}`;
-    default:
-      return `${date.toLocaleString()}.${(tsUsec / 1000).toFixed(3)}`;
-  }
-};
-
-// 创建以太网表格列
-const columns = [
-  {
-    title: "时间戳",
-    key: "timestamp",
-    width: 200,
-    render: (row: { tsSec: number; tsUsec: number }) => {
-      return h('div', {}, formatTimestamp(row.tsSec, row.tsUsec));
-    }
-  },
-  {
-    title: "类型",
-    key: "ethType",
-    render: (row: { ethType: string }) => {
-      return h(NTag, { type: "info", bordered: false }, { default: () => row.ethType });
-    }
-  },
-  {
-    title: "源地址",
-    key: "source",
-  },
-  {
-    title: "目标地址",
-    key: "target",
-  },
-];
-
-// 创建IPv4表格列
-const ipv4Columns = [
-  {
-    title: "时间戳",
-    key: "timestamp",
-    width: 200,
-    render: (row: { tsSec: number; tsUsec: number }) => {
-      return h('div', {}, formatTimestamp(row.tsSec, row.tsUsec));
-    }
-  },
-  {
-    title: "源IP",
-    key: "sourceIp",
-  },
-  {
-    title: "目标IP",
-    key: "destIp",
-  },
-  {
-    title: "协议",
-    key: "protocol",
-    render: (row: { protocol: number }) => {
-      return h(NTag, { type: "success", bordered: false }, { 
-        default: () => getProtocolName(row.protocol) 
-      });
-    }
-  },
-  {
-    title: "TTL",
-    key: "ttl",
-  },
-  {
-    title: "总长度",
-    key: "totalLength",
-  },
-];
-
-// IP方向选项
-const directionOptions = [
-  { label: "任意", value: "any" },
-  { label: "源IP", value: "source" },
-  { label: "目标IP", value: "dest" },
-];
-
-// IP地址分布图表引用
-const sourceIpChartRef = ref<HTMLElement | null>(null);
-const destIpChartRef = ref<HTMLElement | null>(null);
-let sourceIpChart: echarts.ECharts | null = null;
-let destIpChart: echarts.ECharts | null = null;
-
-// IP地址统计数据
-const sourceIpStats = computed(() => {
-  const stats: Record<string, number> = {};
-  // 使用筛选后的数据
-  filteredIpv4Packets.value.forEach(packet => {
-    const ip = packet.sourceIp;
-    stats[ip] = (stats[ip] || 0) + 1;
-  });
-  return Object.entries(stats).map(([ip, count]) => ({
-    name: ip,
-    value: count,
-    percentage: ((count / filteredIpv4Packets.value.length) * 100).toFixed(2)
-  })).sort((a, b) => b.value - a.value);
-});
-
-const destIpStats = computed(() => {
-  const stats: Record<string, number> = {};
-  // 使用筛选后的数据
-  filteredIpv4Packets.value.forEach(packet => {
-    const ip = packet.destIp;
-    stats[ip] = (stats[ip] || 0) + 1;
-  });
-  return Object.entries(stats).map(([ip, count]) => ({
-    name: ip,
-    value: count,
-    percentage: ((count / filteredIpv4Packets.value.length) * 100).toFixed(2)
-  })).sort((a, b) => b.value - a.value);
-});
-
-// 初始化图表
-function initCharts() {
-  if (sourceIpChartRef.value) {
-    sourceIpChart = echarts.init(sourceIpChartRef.value);
-  }
-  if (destIpChartRef.value) {
-    destIpChart = echarts.init(destIpChartRef.value);
-  }
-  updateCharts();
-}
-
-// 更新图表数据
-function updateCharts() {
-  if (sourceIpChart && filteredIpv4Packets.value.length > 0) {
-    sourceIpChart.setOption({
-      title: {
-        text: '源IP地址分布',
-        left: 'center'
-      },
-      tooltip: {
-        trigger: 'item',
-        formatter: '{a} <br/>{b}: {c} ({d}%)'
-      },
-      legend: {
-        orient: 'vertical',
-        left: 'left',
-        type: 'scroll',
-        formatter: (name: string) => {
-          const item = sourceIpStats.value.find(item => item.name === name);
-          return `${name} (${item?.percentage}%)`;
-        }
-      },
-      series: [
-        {
-          name: '源IP',
-          type: 'pie',
-          radius: '60%',
-          data: sourceIpStats.value,
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)'
-            }
-          }
-        }
-      ]
-    });
-  }
-
-  if (destIpChart && filteredIpv4Packets.value.length > 0) {
-    destIpChart.setOption({
-      title: {
-        text: '目标IP地址分布',
-        left: 'center'
-      },
-      tooltip: {
-        trigger: 'item',
-        formatter: '{a} <br/>{b}: {c} ({d}%)'
-      },
-      legend: {
-        orient: 'vertical',
-        left: 'left',
-        type: 'scroll',
-        formatter: (name: string) => {
-          const item = destIpStats.value.find(item => item.name === name);
-          return `${name} (${item?.percentage}%)`;
-        }
-      },
-      series: [
-        {
-          name: '目标IP',
-          type: 'pie',
-          radius: '60%',
-          data: destIpStats.value,
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)'
-            }
-          }
-        }
-      ]
-    });
-  }
-}
-
-// 监听数据变化并更新图表
-watch([filteredIpv4Packets, activeTab], () => {
-  // 下一个事件循环中更新，确保DOM已经更新
-  setTimeout(() => {
-    if (activeTab.value === 'statistics') {
-      if (!sourceIpChart || !destIpChart) {
-        initCharts();
-      } else {
-        updateCharts();
-      }
-    }
-  }, 0);
-});
-
-// 监听窗口大小变化，重绘图表
-window.addEventListener('resize', () => {
-  if (sourceIpChart) sourceIpChart.resize();
-  if (destIpChart) destIpChart.resize();
-});
-
-// 图表加载后初始化
-onMounted(() => {
-  // 之后当第一次切换到statistics标签页时会初始化图表
-});
 </script>
 
 <template>
@@ -456,18 +144,12 @@ onMounted(() => {
       <NLayoutContent class="p-6">
         <NCard class="max-w-4xl mx-auto">
           <NSpace vertical size="large" class="w-full">
-            <div class="flex items-center space-x-4">
-              <NButton type="primary" @click="pickFile" :loading="isLoading">
-                选择 PCAP 文件
-              </NButton>
-              <NInput
-                v-if="filePath"
-                v-model:value="filePath"
-                readonly
-                placeholder="未选择文件"
-                class="flex-grow"
-              />
-            </div>
+            <!-- 文件选择器组件 -->
+            <FileSelector
+              v-model:filePath="filePath"
+              :isLoading="isLoading"
+              @analyze="analyzeFile"
+            />
             
             <NDivider v-if="packets.length" />
             
@@ -477,132 +159,40 @@ onMounted(() => {
             
             <div v-else-if="packets.length">
               <NTabs v-model:value="activeTab">
+                <!-- 以太网数据包标签页 -->
                 <NTabPane name="ethernet" tab="以太网数据包">
-                  <NDataTable
-                    :columns="columns"
-                    :data="paginatedPackets"
-                    :bordered="false"
-                    :single-line="false"
-                    class="mb-4"
-                  />
-                  
-                  <div class="flex justify-between items-center mt-4">
-                    <div class="text-sm text-gray-500">
-                      共 {{ packets.length }} 个以太网数据包
-                    </div>
-                    <NPagination
-                      v-model:page="currentPage"
-                      v-model:page-size="packetsPerPage"
-                      :page-count="totalPages"
-                      :page-sizes="[5, 10, 20, 50, 100]"
-                      show-size-picker
-                      @update:page="handlePageChange"
-                      @update:page-size="handlePageSizeChange"
-                    />
-                  </div>
+                  <EthernetPacketsTable :packets="packets" />
                 </NTabPane>
                 
+                <!-- IPv4数据包标签页 -->
                 <NTabPane name="ipv4" tab="IPv4 数据包">
-                  <!-- 筛选区域 -->
+                  <!-- IPv4筛选器组件 -->
                   <NCard title="IPv4 数据包筛选" class="mb-4">
-                    <NForm inline>
-                      <NFormItem label="时间范围" class="mt-2">
-                        <NDatePicker
-                          v-model:value="ipv4Filter.startTime"
-                          type="datetime"
-                          placeholder="开始时间"
-                          clearable
-                          :shortcuts="{ now: Date.now() }"
-                          style="width: 210px"
-                        />
-                        <span class="mx-2">至</span>
-                        <NDatePicker
-                          v-model:value="ipv4Filter.endTime"
-                          type="datetime"
-                          placeholder="结束时间"
-                          clearable
-                          :shortcuts="{ now: Date.now() }"
-                          style="width: 210px"
-                        />
-                      </NFormItem>
-                      
-                      <NFormItem label="IP筛选" class="mt-2">
-                        <NInputGroup>
-                          <NSelect
-                            v-model:value="ipv4Filter.direction"
-                            :options="directionOptions"
-                            style="width: 100px"
-                          />
-                          <NInput
-                            v-model:value="ipv4Filter.ipAddress"
-                            placeholder="输入要筛选的IP"
-                            style="width: 200px"
-                          />
-                        </NInputGroup>
-                      </NFormItem>
-
-                      <NFormItem class="mt-2">
-                        <NButton type="primary" @click="applyFilter">应用筛选</NButton>
-                        <NButton type="default" class="ml-2" @click="clearFilter">清除筛选</NButton>
-                      </NFormItem>
-                    </NForm>
-
-                    <div v-if="isFiltered" class="text-sm text-blue-600 mt-2">
-                      <NTag type="info">
-                        已筛选：显示 {{ filteredIpv4Packets.length }} / {{ ipv4Packets.length }} 个数据包
-                      </NTag>
-                    </div>
+                    <IPv4Filter
+                      v-model:filterData="ipv4Filter"
+                      :isFiltered="isFiltered"
+                      :totalPackets="ipv4Packets.length"
+                      :filteredPackets="filteredIpv4Packets.length"
+                      @apply="applyFilter"
+                      @clear="clearFilter"
+                    />
                   </NCard>
                   
-                  <!-- 数据表格 -->
-                  <NDataTable
-                    :columns="ipv4Columns"
-                    :data="paginatedIpv4Packets"
-                    :bordered="false"
-                    :single-line="false"
-                    class="mb-4"
+                  <!-- IPv4数据包表格组件 -->
+                  <IPv4PacketsTable
+                    :packets="filteredIpv4Packets"
+                    :isFiltered="isFiltered"
+                    :totalPackets="ipv4Packets.length"
                   />
-                  
-                  <div class="flex justify-between items-center mt-4">
-                    <div class="text-sm text-gray-500">
-                      {{ isFiltered ? `显示 ${filteredIpv4Packets.length} / ${ipv4Packets.length} 个 IPv4 数据包` : `共 ${ipv4Packets.length} 个 IPv4 数据包` }}
-                    </div>
-                    <NPagination
-                      v-model:page="ipv4CurrentPage"
-                      v-model:page-size="ipv4PacketsPerPage"
-                      :page-count="totalIpv4Pages"
-                      :page-sizes="[5, 10, 20, 50, 100]"
-                      show-size-picker
-                      @update:page="handleIpv4PageChange"
-                      @update:page-size="handleIpv4PageSizeChange"
-                    />
-                  </div>
                 </NTabPane>
                 
+                <!-- IP地址分布标签页 -->
                 <NTabPane name="statistics" tab="IP地址分布">
-                  <!-- IP地址分布统计图表 -->
                   <NCard title="IPv4 地址分布统计" class="mb-4">
-                    <div v-if="filteredIpv4Packets.length > 0">
-                      <NGrid :cols="1" :x-gap="12" :y-gap="12">
-                        <NGridItem>
-                          <div ref="sourceIpChartRef" style="height: 400px;"></div>
-                        </NGridItem>
-                        <NGridItem>
-                          <div ref="destIpChartRef" style="height: 400px;"></div>
-                        </NGridItem>
-                      </NGrid>
-                      
-                      <div class="mt-4 text-sm text-gray-600">
-                        <p>* 图表基于当前筛选后的 {{ filteredIpv4Packets.length }} 个 IPv4 数据包</p>
-                        <p v-if="isFiltered" class="mt-1">
-                          * 你可以在 IPv4 数据包标签页中调整筛选条件
-                        </p>
-                      </div>
-                    </div>
-                    <NEmpty 
-                      v-else
-                      description="没有可用的 IPv4 数据包"
-                      class="py-8"
+                    <IPAddressCharts
+                      :packets="filteredIpv4Packets"
+                      :isFiltered="isFiltered"
+                      :totalPackets="ipv4Packets.length"
                     />
                   </NCard>
                 </NTabPane>
