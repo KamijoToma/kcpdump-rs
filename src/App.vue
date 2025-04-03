@@ -139,7 +139,7 @@ async function analyzeFile() {
   <NMessageProvider>
     <NLayout position="absolute" class="bg-gray-50">
       <NLayoutHeader bordered class="p-4 bg-white shadow-sm">
-        <div class="text-2xl font-bold text-center text-green-600">PCAP 文件分析器</div>
+        <div class="text-2xl font-bold text-center text-green-600">KCPDump PCAP 分析器</div>
       </NLayoutHeader>
       <NLayoutContent class="p-6">
         <NCard class="max-w-4xl mx-auto">
