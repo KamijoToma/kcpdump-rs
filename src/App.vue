@@ -16,7 +16,6 @@ import {
   NConfigProvider
 } from "naive-ui";
 
-
 import FileSelector from './components/FileSelector.vue';
 import EthernetPacketsTable from './components/EthernetPacketsTable.vue';
 import IPv4Filter from './components/IPv4Filter.vue';
