@@ -196,5 +196,5 @@ async function analyzeFile() {
 
 <style>
 /* 导入 Tailwind */
-@import "tailwindcss";
+@import "tailwindcss"; 
 </style>
